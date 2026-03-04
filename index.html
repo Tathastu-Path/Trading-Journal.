@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Institution F&O Journal</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {font-family: Arial;background:#0a0f1c;color:white;padding:20px;}
+    h1{text-align:center;}
+    input,select,button{
+      padding:7px;margin:4px;border-radius:6px;border:none;
+    }
+    button{background:#00c853;color:white;cursor:pointer;}
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:20px;}
+    .card{background:#1e293b;padding:12px;border-radius:10px;text-align:center;}
+    table{width:100%;margin-top:20px;font-size:12px;border-collapse:collapse;}
+    th,td{border:1px solid white;padding:6px;text-align:center;}
+    canvas{background:white;margin-top:25px;border-radius:10px;}
+  </style>
+</head>
+<body>
+
+<h1>🏛 Institution F&O Journal</h1>
+
+Capital: <input type="number" id="capital" placeholder="Enter Capital">
+
+<input type="date" id="date">
+
+<select id="instrument" onchange="setLot()">
+<option>NIFTY</option>
+<option>BANKNIFTY</option>
+<option>SENSEX</option>
+</select>
+
+<select id="type">
+<option>CALL</option>
+<option>PUT</option>
+</select>
+
+<input type="number" id="entry" placeholder="Entry">
+<input type="number" id="exit" placeholder="Exit">
+<input type="number" id="sl" placeholder="Stoploss">
+<input type="number" id="target" placeholder="Target">
+
+<input type="text" id="strategy" placeholder="Strategy">
+<input type="text" id="mistake" placeholder="Mistake Tag">
+
+<input type="number" id="lot" readonly>
+<input type="number" id="qty" readonly>
+
+<button onclick="saveTrade()">Save</button>
+<button onclick="backup()">Backup</button>
+<button onclick="restore()">Restore</button>
+
+<div class="grid">
+<div class="card">Trades<br><span id="tTrades">0</span></div>
+<div class="card">Win %<br><span id="win">0</span></div>
+<div class="card">Net Profit<br><span id="netP">0</span></div>
+<div class="card">Return %<br><span id="ret">0</span></div>
+<div class="card">Max DD<br><span id="dd">0</span></div>
+<div class="card">Avg RR<br><span id="rr">0</span></div>
+</div>
+
+<table>
+<thead>
+<tr>
+<th>Date</th><th>Inst</th><th>Strat</th>
+<th>Net</th><th>RR</th><th>After Charges</th>
+</tr>
+</thead>
+<tbody id="table"></tbody>
+</table>
+
+<canvas id="chart"></canvas>
+
+<script>
+
+let trades=JSON.parse(localStorage.getItem("trades"))||[];
+
+function setLot(){
+ let inst=document.getElementById("instrument").value;
+ let lot=inst==="NIFTY"?65:inst==="BANKNIFTY"?30:20;
+ document.getElementById("lot").value=lot;
+ document.getElementById("qty").value=lot;
+}
+setLot();
+
+function saveTrade(){
+
+ let entry=parseFloat(entryEl.value);
+ let exit=parseFloat(exitEl.value);
+ let sl=parseFloat(slEl.value);
+ let target=parseFloat(targetEl.value);
+ let qty=parseInt(qtyEl.value);
+
+ let points=exit-entry;
+ let gross=points*qty;
+
+ let brokerage=40; 
+ let charges=gross*0.001; 
+ let net=gross-brokerage-charges;
+
+ let rr=(target-entry)/(entry-sl);
+
+ trades.push({
+   date:dateEl.value,
+   inst:instrument.value,
+   strat:strategy.value,
+   mistake:mistake.value,
+   net, rr
+ });
+
+ localStorage.setItem("trades",JSON.stringify(trades));
+ display();
+}
+
+const dateEl=date, instrument=document.getElementById("instrument"),
+entryEl=entry, exitEl=exit, slEl=sl, targetEl=target,
+qtyEl=qty, strategy=document.getElementById("strategy"),
+mistake=document.getElementById("mistake");
+
+function display(){
+ let table=document.getElementById("table");
+ table.innerHTML="";
+ let total=0,wins=0,peak=0,maxDD=0,rrSum=0;
+
+ trades.forEach(t=>{
+   total+=t.net;
+   if(t.net>0) wins++;
+   if(total>peak) peak=total;
+   let dd=peak-total;
+   if(dd>maxDD) maxDD=dd;
+   rrSum+=t.rr;
+
+   table.innerHTML+=`
+   <tr>
+   <td>${t.date}</td>
+   <td>${t.inst}</td>
+   <td>${t.strat}</td>
+   <td>${t.net.toFixed(0)}</td>
+   <td>${t.rr.toFixed(2)}</td>
+   <td>${t.net.toFixed(0)}</td>
+   </tr>`;
+ });
+
+ let capital=parseFloat(document.getElementById("capital").value)||1;
+
+ tTrades.innerText=trades.length;
+ win.innerText=trades.length?((wins/trades.length)*100).toFixed(1):0;
+ netP.innerText=total.toFixed(0);
+ ret.innerText=((total/capital)*100).toFixed(2);
+ dd.innerText=maxDD.toFixed(0);
+ rr.innerText=trades.length?(rrSum/trades.length).toFixed(2):0;
+
+ updateChart();
+}
+
+let chart;
+
+function updateChart(){
+ let cum=0;
+ let data=trades.map(t=>{
+   cum+=t.net;
+   return cum;
+ });
+ if(chart) chart.destroy();
+ chart=new Chart(chartEl,{
+   type:'line',
+   data:{
+     labels:trades.map((t,i)=>i+1),
+     datasets:[{label:'Equity Curve',data:data,borderColor:'lime'}]
+   }
+ });
+}
+
+const chartEl=document.getElementById("chart");
+
+function backup(){
+ let data=JSON.stringify(trades);
+ navigator.clipboard.writeText(data);
+ alert("Copied! Save it in notes.");
+}
+
+function restore(){
+ let data=prompt("Paste Backup Data");
+ if(data){
+   trades=JSON.parse(data);
+   localStorage.setItem("trades",JSON.stringify(trades));
+   display();
+ }
+}
+
+display();
+
+</script>
+</body>
+</html>
